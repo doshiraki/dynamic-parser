@@ -201,13 +201,9 @@ mod tests {
                     .and(Parser::skip("}")
             ).func)(root, source, position)));
     
-        let json_elements = Parser::new(Rc::new(move |root:&Parser, source: &str, position: i32|
-            (
-                json_item.clone()
-                .or(json_array.clone())
-                .or(json_object.clone()
-            ).func)(root, source, position)));
-            
+        let json_elements = json_item.clone()
+                        .or(json_array.clone())
+                        .or(json_object.clone());
 
         let result = json_elements.parse("{\"arr\":[123,456,789],\"obj\":{\"key\":\"value\",\"key\":123}}");
         assert_eq!(result.is_ok(), true);
