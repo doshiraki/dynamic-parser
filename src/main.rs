@@ -66,7 +66,7 @@ struct Parser
 
 
 impl<'b> Parser {
-    fn new(p2p:Rc<dyn Fn(&Parser) -> Parser>)->Self {
+    fn new(p2p:Box<dyn Fn(&Parser) -> Parser>)->Self {
         Parser{func:Rc::new(move |root:&Parser, source: &str, position: i32|(p2p(root).func)(root, source, position))}
     }
     fn parse(&self, s:&str)->Result<Success, Failure> {
@@ -188,13 +188,13 @@ mod tests {
         let json_number = Parser::regex("0|[1-9][0-9]*", 0);
         let json_item = json_boolean.clone().or(json_string.clone()).or(json_number.clone());
 
-        let json_array = Parser::new(Rc::new(move |root:&Parser|
+        let json_array = Parser::new(Box::new(move |root:&Parser|
                 Parser::skip("\\[")
                 .and(root.clone().and(Parser::skip(",?")).repeat())
                 .and(Parser::skip("]"))
             ));
 
-        let json_object = Parser::new(Rc::new(move |root:&Parser|
+        let json_object = Parser::new(Box::new(move |root:&Parser|
                 Parser::skip("\\{")
                     .and(json_string.clone().and(Parser::skip(":")).and(root.clone()).and(Parser::skip(",?")).repeat())
                     .and(Parser::skip("}"))
