@@ -83,7 +83,7 @@ impl<'b> Parser {
             let mut v = Vec::<Value>::new();
             if result1.value != Value::None {
                 v.push(result1.value);
-            } 
+            }
             if result2.value != Value::None {
                 v.push(result2.value);
             }
@@ -93,6 +93,24 @@ impl<'b> Parser {
                     1 => v[0].clone(),
                     _ => Value::List(v),
                 }})
+        })}
+    }
+    
+    fn flat(self)->Self {
+        Parser{func:Rc::new(move |root:&Self, s:&str, i:i32| {
+            let mut result1 = (self.func)(root, s, i)?;
+            if let Value::List(results) = result1.value {
+                let mut v = Vec::<Value>::new();
+                for result in results {
+                    if let Value::List(result_each) = result {
+                        v.extend(result_each)
+                    } else if result != Value::None {
+                        v.push(result)
+                    }
+                }
+                result1.value = match v.len() {0=>Value::None, _=>Value::List(v)};
+            };
+            Ok(result1)
         })}
     }
     fn repeat(self)->Self {
@@ -180,6 +198,243 @@ fn main() {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn and_ok() {
+        let string = |p:&str| Parser::regex(p, 0);
+        let parser = string("key").and(string(":")).and(string("value"));
+        let result = parser.parse("key:value");
+        assert_eq!(result.is_ok(), true);
+        assert_eq!(
+            result.value(),
+            Value::List(vec![
+                Value::List(vec![
+                    Value::Some("key".to_string()),
+                    Value::Some(":".to_string()),
+                ]),
+                Value::Some("value".to_string()),
+            ]),
+        );
+    }
+
+    #[test]
+    fn and_error() {
+        let string = |p:&str| Parser::regex(p, 0);
+        let parser = string("key").and(string(":")).and(string("value"));
+        let result = parser.parse("key:valu");
+        assert_eq!(result.is_ok(), false);
+        assert_eq!(result.err_position(), 4);
+    }
+
+    #[test]
+    fn or_ok() {
+        let string = |p:&str| Parser::regex(p, 0);
+        let parser = string("x").or(string("y")).or(string("z"));
+        let result = parser.parse("x");
+        assert_eq!(result.is_ok(), true);
+        assert_eq!(result.value(), Value::Some("x".to_string()));
+    }
+
+    #[test]
+    fn or_error() {
+        let string = |p:&str| Parser::regex(p, 0);
+        let parser = string("x").or(string("y")).or(string("z"));
+        let result = parser.parse("w");
+        assert_eq!(result.is_ok(), false);
+        assert_eq!(result.err_position(), 0);
+    }
+
+    #[test]
+    fn many_ok() {
+        let string = |p:&str| Parser::regex(p, 0);
+        let parser = string("xy").repeat().flat();
+        let result = parser.parse("xyxyxyxy");
+        assert_eq!(result.is_ok(), true);
+        assert_eq!(
+            result.value(),
+            Value::List(vec![
+                Value::Some("xy".to_string()),
+                Value::Some("xy".to_string()),
+                Value::Some("xy".to_string()),
+                Value::Some("xy".to_string()),
+            ]),
+        );
+
+        let parser = string("xy").repeat().flat();
+        let result = parser.parse("");
+        assert_eq!(result.is_ok(), true);
+        assert_eq!(
+            result.value(),
+            Value::None,
+        );
+    }
+
+    #[test]
+    fn many_error() {
+        let string = |p:&str| Parser::regex(p, 0);
+        let parser = string("x").repeat();
+        let result = parser.parse("xxxxxy");
+        assert_eq!(result.is_ok(), false);
+        assert_eq!(result.err_position(), 5);
+    }
+
+    #[test]
+    fn regex_ok() {
+        let parser = Parser::regex(r"([0-9]+)([a-z]+)", 1);
+        let result = parser.parse("123abc");
+        assert_eq!(result.is_ok(), true);
+        assert_eq!(result.value(), Value::Some("123".to_string()));
+
+        let parser = Parser::regex(r"[0-9]+", 0);
+        let result = parser.parse("123");
+        assert_eq!(result.is_ok(), true);
+        assert_eq!(result.value(), Value::Some("123".to_string()));
+    }
+
+    #[test]
+    fn regex_error() {
+        let parser = Parser::regex(r"[0-9]+", 0);
+        let result = parser.parse("12a");
+        assert_eq!(result.is_ok(), false);
+        assert_eq!(result.err_position(), 2);
+    }
+
+    #[test]
+    fn sep_by1_ok() {
+        let string = |p:&str| Parser::regex(p, 0);
+        let parser_val = string("val");
+        let parser = parser_val.clone().and(Parser::skip(",").and(parser_val.clone()).repeat()).flat();
+
+        let result = parser.parse("val");
+        assert_eq!(result.is_ok(), true);
+        assert_eq!(
+            result.value(),
+            Value::List(vec![
+                Value::Some("val".to_string()),
+            ]),
+        );
+
+        let result = parser.parse("val,val,val");
+        assert_eq!(result.is_ok(), true);
+        assert_eq!(
+            result.value(),
+            Value::List(vec![
+                Value::Some("val".to_string()),
+                Value::Some("val".to_string()),
+                Value::Some("val".to_string()),
+            ]),
+        );
+    }
+
+    #[test]
+    fn sep_by1_error() {
+        let string = |p:&str| Parser::regex(p, 0);
+        let parser_val = string("val");
+        let parser = parser_val.clone().and(Parser::skip(",").and(parser_val.clone()).repeat()).flat();
+
+        let result = parser.parse("");
+        assert_eq!(result.is_ok(), false);
+        assert_eq!(result.err_position(), 0);
+
+        let result = parser.parse("val,");
+        assert_eq!(result.is_ok(), false);
+        assert_eq!(result.err_position(), 3);
+    }
+
+    #[test]
+    fn sep_by_ok() {
+        let string = |p:&str| Parser::regex(p, 0);
+        let parser_val = string("val");
+        let parser = parser_val.clone().and(Parser::skip(",").and(string("val")).repeat()).flat().or(Parser::skip(""));
+
+        let result = parser.parse("");
+        assert_eq!(result.is_ok(), true);
+        assert_eq!(
+            result.value(),
+            Value::None,
+        );
+
+        let result = parser.parse("val");
+        assert_eq!(result.is_ok(), true);
+        assert_eq!(
+            result.value(),
+            Value::List(vec![
+                Value::Some("val".to_string()),
+            ]),
+        );
+
+        let result = parser.parse("val,val,val");
+        assert_eq!(result.is_ok(), true);
+        assert_eq!(
+            result.value(),
+            Value::List(vec![
+                Value::Some("val".to_string()),
+                Value::Some("val".to_string()),
+                Value::Some("val".to_string()),
+            ]),
+        );
+    }
+
+    #[test]
+    fn sep_by_error() {
+        let string = |p:&str| Parser::regex(p, 0);
+        let parser_val = string("val");
+        let parser = parser_val.clone().and(Parser::skip(",").and(string("val")).repeat()).flat().or(Parser::skip(""));
+        let result = parser.parse("val,");
+        assert_eq!(result.is_ok(), false);
+        assert_eq!(result.err_position(), 3);
+    }
+
+    #[test]
+    fn skip_ok() {
+        let parser = Parser::regex("x", 0).and(Parser::skip("y"));
+        let result = parser.parse("xy");
+        assert_eq!(result.is_ok(), true);
+        assert_eq!(result.value(), Value::Some("x".to_string()));
+    }
+
+    #[test]
+    fn skip_error() {
+        let parser = Parser::regex("xxx", 0).and(Parser::skip("yyy"));
+        let result = parser.parse("xxxxyy");
+        assert_eq!(result.is_ok(), false);
+        assert_eq!(result.err_position(), 3);
+    }
+
+    #[test]
+    fn string_ok() {
+        let string = |p:&str| Parser::regex(p, 0);
+        let parser = string("source");
+        let result = parser.parse("source");
+        assert_eq!(result.is_ok(), true);
+        assert_eq!(result.value(), Value::Some("source".to_string()));
+    }
+
+    #[test]
+    fn string_error() {
+        let string = |p:&str| Parser::regex(p, 0);
+        let parser = string("source");
+        let result = parser.parse("other");
+        assert_eq!(result.is_ok(), false);
+        assert_eq!(result.err_position(), 0);
+    }
+
+    #[test]
+    fn then_ok() {
+        let parser = Parser::skip("x").and(Parser::regex("y", 0));
+        let result = parser.parse("xy");
+        assert_eq!(result.is_ok(), true);
+        assert_eq!(result.value(), Value::Some("y".to_string()));
+    }
+
+    #[test]
+    fn then_error() {
+        let parser = Parser::skip("xxx").and(Parser::regex("yyy", 0));
+        let result = parser.parse("xxxxyy");
+        assert_eq!(result.is_ok(), false);
+        assert_eq!(result.err_position(), 3);
+    }
+
 
     #[test]
     fn json_ok() {
