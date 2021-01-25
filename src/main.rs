@@ -196,8 +196,8 @@ mod tests {
 
         let json_object = Parser::new(Box::new(move |root:&Parser|
                 Parser::skip("\\{")
-                    .and(json_string.clone().and(Parser::skip(":")).and(root.clone()).and(Parser::skip(",?")).repeat())
-                    .and(Parser::skip("}"))
+                .and(json_string.clone().and(Parser::skip(":")).and(root.clone()).and(Parser::skip(",?")).repeat())
+                .and(Parser::skip("}"))
             ));
     
         let json_elements = json_item.clone()
