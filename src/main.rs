@@ -184,7 +184,8 @@ mod tests {
     #[test]
     fn json_ok() {
         let json_boolean = Parser::regex("true", 0).or(Parser::regex("false", 0));
-        let json_string = Parser::regex("\"([^\"]*)\"", 1);
+        let json_quot = Parser::skip("\"");
+        let json_string = json_quot.clone().and(Parser::regex("([^\\\\\"]*(\\\\.)?)+", 0)).and(json_quot.clone());
         let json_number = Parser::regex("0|[1-9][0-9]*", 0);
         let json_item = json_boolean.clone().or(json_string.clone()).or(json_number.clone());
 
@@ -204,7 +205,7 @@ mod tests {
                         .or(json_array.clone())
                         .or(json_object.clone());
 
-        let result = json_elements.parse("{\"arr\":[123,456,789],\"obj\":{\"key\":\"value\",\"key\":123}}");
+        let result = json_elements.parse("{\"arr\":[123,\"4\\\"56\",789],\"obj\":{\"key\":\"value\",\"key\":123}}");
         assert_eq!(result.is_ok(), true);
         assert_eq!(
             result.value(),
@@ -213,7 +214,7 @@ mod tests {
                     Value::Some("arr".to_string()),
                     Value::List(vec![
                         Value::Some("123".to_string()),
-                        Value::Some("456".to_string()),
+                        Value::Some("4\\\"56".to_string()),
                         Value::Some("789".to_string()),
                     ]),
                 ]),
