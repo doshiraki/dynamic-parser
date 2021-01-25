@@ -522,6 +522,24 @@ mod tests {
         assert_eq!(result.is_ok(), false);
         assert_eq!(result.err_position(), 1);
 
+        let result = json_elements.parse("[123]");
+        assert_eq!(result.is_ok(), true);
+        assert_eq!(
+            result.value(),
+            Value::List(vec![
+                Value::Some("123".to_string()),
+            ]),
+        );
+
+        let result = json_elements.parse("[123,]");
+        assert_eq!(result.is_ok(), true);
+        assert_eq!(
+            result.value(),
+            Value::List(vec![
+                Value::Some("123".to_string()),
+            ]),
+        );
+
         let result = json_elements.parse("[123,456,]");
         assert_eq!(result.is_ok(), true);
         assert_eq!(
@@ -559,6 +577,30 @@ mod tests {
                 Value::List(vec![
                     Value::Some("key2".to_string()),
                     Value::Some("123".to_string()),
+                ]),
+            ]),
+        );
+
+        let result = json_elements.parse("{\"key1\":\"value\"}");
+        assert_eq!(result.is_ok(), true);
+        assert_eq!(
+            result.value(),
+            Value::List(vec![
+                Value::List(vec![
+                    Value::Some("key1".to_string()),
+                    Value::Some("value".to_string()),
+                ]),
+            ]),
+        );
+
+        let result = json_elements.parse("{\"key1\":\"value\",}");
+        assert_eq!(result.is_ok(), true);
+        assert_eq!(
+            result.value(),
+            Value::List(vec![
+                Value::List(vec![
+                    Value::Some("key1".to_string()),
+                    Value::Some("value".to_string()),
                 ]),
             ]),
         );
