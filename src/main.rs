@@ -147,10 +147,10 @@ impl<'b> Parser {
 
     fn regex(pattern: &str, group: isize) -> Self {
         let s = pattern.to_string();
+        let ptn = "^(".to_string()+s.clone().as_str()+")";
+        let regex = Regex::new(&ptn).unwrap();
         Parser{func:Rc::new(move |_root:&Self, source: &str, position: i32| -> Result<Success, Failure> {
             let src = &source[position as usize..source.len()];
-            let ptn = "^(".to_string()+s.clone().as_str()+")";
-            let regex = Regex::new(&ptn).unwrap();
             let captures = regex.captures(src);
             match captures {
                 Some(caps) => {
