@@ -95,7 +95,17 @@ impl<'b> Parser {
                 }})
         })}
     }
-    
+
+    fn list(self)->Self {
+        Parser{func:Rc::new(move |root:&Self, s:&str, i:i32| {
+            let mut result1 = (self.func)(root, s, i)?;
+            if result1.value != Value::None {
+                result1.value = Value::List(vec![result1.value]);
+            }
+            Ok(result1)
+        })}
+    }
+
     fn flat(self)->Self {
         Parser{func:Rc::new(move |root:&Self, s:&str, i:i32| {
             let mut result1 = (self.func)(root, s, i)?;
@@ -456,8 +466,8 @@ mod tests {
             let json_comma = Parser::skip(",");
             Parser::skip("\\{")
             .and(
-                Parser::skip("").and(json_pair.clone())
-                .and(json_comma.clone().and(json_pair.clone()).repeat().flat())
+                json_pair.clone().list()
+                .and(json_comma.clone().and(json_pair.clone()).repeat()).flat()
                 .and(json_comma.clone().or(Parser::skip(""))))
             .and(Parser::skip("}"))
             }));
@@ -552,6 +562,27 @@ mod tests {
                 ]),
             ]),
         );
+
+        let result = json_elements.parse("{\"key1\":\"value\",\"key2\":123,\"key3\":true,}");
+        assert_eq!(result.is_ok(), true);
+        assert_eq!(
+            result.value(),
+            Value::List(vec![
+                Value::List(vec![
+                    Value::Some("key1".to_string()),
+                    Value::Some("value".to_string()),
+                ]),
+                Value::List(vec![
+                    Value::Some("key2".to_string()),
+                    Value::Some("123".to_string()),
+                ]),
+                Value::List(vec![
+                    Value::Some("key3".to_string()),
+                    Value::Some("true".to_string()),
+                ]),
+            ]),
+        );
+
         let result = json_elements.parse("{}");
         assert_eq!(result.is_ok(), false);
         assert_eq!(result.err_position(), 1);
