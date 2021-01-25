@@ -190,14 +190,14 @@ mod tests {
 
         let json_array = Parser::new(Rc::new(move |root:&Parser, source: &str, position: i32|
             ((Parser::skip("\\[")
-                    .and(root.clone().and(Parser::regex(",?", -1)).repeat())
+                    .and(root.clone().and(Parser::skip(",?")).repeat())
                     .and(Parser::skip("]"))
             ).func)(root, source, position)));
 
         let json_object = Parser::new(Rc::new(move |root:&Parser, source: &str, position: i32|
             (
                 Parser::skip("\\{")
-                    .and(json_string.clone().and(Parser::skip(":")).and(root.clone()).and(Parser::regex(",?", -1)).repeat())
+                    .and(json_string.clone().and(Parser::skip(":")).and(root.clone()).and(Parser::skip(",?")).repeat())
                     .and(Parser::skip("}")
             ).func)(root, source, position)));
     
